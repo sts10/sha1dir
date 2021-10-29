@@ -37,7 +37,7 @@ fn die<P: AsRef<Path>, E: Display>(path: P, error: E) -> ! {
 
     DIE.call_once(|| {
         let path = path.as_ref().display();
-        let _ = writeln!(io::stderr(), "sha1sum: {}: {}", path, error);
+        let _ = writeln!(io::stderr(), "blake3sum: {}: {}", path, error);
         process::exit(1);
     });
 
@@ -159,24 +159,24 @@ fn entry<'scope>(scope: &Scope<'scope>, checksum: &'scope Checksum, path: &Path)
 }
 
 fn file(checksum: &Checksum, path: &Path, metadata: Metadata) -> Result<()> {
-    let mut sha = begin(path, &metadata, b'f');
+    let mut hash = begin(path, &metadata, b'f');
 
     // Enforced by memmap: "memory map must have a non-zero length"
     if metadata.len() > 0 {
         let file = File::open(path)?;
         let mmap = unsafe { Mmap::map(&file)? };
-        sha.update(&mmap);
+        hash.update(&mmap);
     }
 
-    checksum.put(sha);
+    checksum.put(hash);
 
     Ok(())
 }
 
 fn symlink(checksum: &Checksum, path: &Path, metadata: Metadata) -> Result<()> {
-    let mut sha = begin(path, &metadata, b'l');
-    sha.update(path.read_link()?.as_os_str().as_bytes());
-    checksum.put(sha);
+    let mut hash = begin(path, &metadata, b'l');
+    hash.update(path.read_link()?.as_os_str().as_bytes());
+    checksum.put(hash);
 
     Ok(())
 }
@@ -187,8 +187,8 @@ fn dir<'scope>(
     path: &Path,
     metadata: Metadata,
 ) -> Result<()> {
-    let sha = begin(path, &metadata, b'd');
-    checksum.put(sha);
+    let hash = begin(path, &metadata, b'd');
+    checksum.put(hash);
 
     for child in path.read_dir()? {
         let child = child?.path();
@@ -199,14 +199,13 @@ fn dir<'scope>(
 }
 
 fn socket(checksum: &Checksum, path: &Path, metadata: Metadata) -> Result<()> {
-    let sha = begin(path, &metadata, b's');
-    checksum.put(sha);
+    let hash = begin(path, &metadata, b's');
+    checksum.put(hash);
 
     Ok(())
 }
 
 fn begin(path: &Path, metadata: &Metadata, kind: u8) -> blake3::Hasher {
-    // let mut sha = Sha1::new();
     let mut hasher = blake3::Hasher::new();
     let path_bytes = path.as_os_str().as_bytes();
     hasher.update(&[kind]);
