@@ -17,7 +17,6 @@
 use memmap::Mmap;
 use parking_lot::Mutex;
 use rayon::{Scope, ThreadPoolBuilder};
-use sha1::Sha1;
 use std::cmp;
 use std::env;
 use std::error::Error;
@@ -122,8 +121,8 @@ impl Display for Checksum {
 }
 
 impl Checksum {
-    fn put(&self, rhs: Sha1) {
-        for (lhs, rhs) in self.bytes.lock().iter_mut().zip(&rhs.digest().bytes()) {
+    fn put(&self, rhs: blake3::Hasher) {
+        for (lhs, rhs) in self.bytes.lock().iter_mut().zip(rhs.finalize().as_bytes()) {
             *lhs ^= *rhs;
         }
     }
@@ -206,12 +205,13 @@ fn socket(checksum: &Checksum, path: &Path, metadata: Metadata) -> Result<()> {
     Ok(())
 }
 
-fn begin(path: &Path, metadata: &Metadata, kind: u8) -> Sha1 {
-    let mut sha = Sha1::new();
+fn begin(path: &Path, metadata: &Metadata, kind: u8) -> blake3::Hasher {
+    // let mut sha = Sha1::new();
+    let mut hasher = blake3::Hasher::new();
     let path_bytes = path.as_os_str().as_bytes();
-    sha.update(&[kind]);
-    sha.update(&(path_bytes.len() as u32).to_le_bytes());
-    sha.update(path_bytes);
-    sha.update(&metadata.mode().to_le_bytes());
-    sha
+    hasher.update(&[kind]);
+    hasher.update(&(path_bytes.len() as u32).to_le_bytes());
+    hasher.update(path_bytes);
+    hasher.update(&metadata.mode().to_le_bytes());
+    hasher
 }
